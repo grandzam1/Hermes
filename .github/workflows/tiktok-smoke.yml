@@ -1,0 +1,69 @@
+name: TikTok Download Smoke Test
+
+# Tests yt-dlp + Hermes TikTok settings on GitHub-hosted runners.
+# Does NOT start the Hermes API/Celery stack.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: TikTok video URL to test
+        required: false
+        default: https://www.tiktok.com/@/video/7650809680276507924
+      download:
+        description: Also download the video file (not just metadata)
+        type: boolean
+        default: false
+
+jobs:
+  tiktok-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install API dependencies
+        working-directory: packages/hermes-api
+        run: uv sync --frozen --all-groups
+
+      - name: Write TikTok cookies from secret
+        working-directory: packages/hermes-api
+        env:
+          HERMES_TIKTOK_COOKIES_JSON: ${{ secrets.HERMES_TIKTOK_COOKIES_JSON }}
+        run: |
+          if [ -z "$HERMES_TIKTOK_COOKIES_JSON" ]; then
+            echo "::error::Missing repo secret HERMES_TIKTOK_COOKIES_JSON"
+            echo "Add your browser-exported TikTok cookies JSON array in GitHub:"
+            echo "Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          mkdir -p cookies
+          printf '%s' "$HERMES_TIKTOK_COOKIES_JSON" > cookies/tiktok.json
+          chmod 600 cookies/tiktok.json
+
+      - name: Run TikTok smoke test
+        working-directory: packages/hermes-api
+        env:
+          HERMES_COOKIES_JSON: ./cookies/tiktok.json
+          HERMES_YTDLP_IMPERSONATE: chrome
+          HERMES_YTDLP_IMPERSONATE_SITES: tiktok
+          HERMES_YTDLP_USER_AGENT: Mozilla/5.0
+          TIKTOK_TEST_URL: ${{ inputs.url }}
+        run: |
+          ARGS=(../../scripts/tiktok-smoke.py "${{ inputs.url }}")
+          if [ "${{ inputs.download }}" = "true" ]; then
+            ARGS+=(--download)
+          fi
+          uv run python "${ARGS[@]}"
