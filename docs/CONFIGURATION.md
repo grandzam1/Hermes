@@ -51,6 +51,26 @@ All configuration is managed through environment variables with the `HERMES_` pr
 | `HERMES_DOWNLOAD_DIR` | `./downloads` | Directory for completed downloads |
 | `HERMES_TEMP_DIR` | `./temp` | Directory for temporary files during processing |
 
+### Cookies (yt-dlp)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HERMES_COOKIES_JSON` | *(none)* | Path(s) to browser-exported JSON cookies. Single path or comma-separated list (e.g. `./cookies/youtube.json,./cookies/tiktok.json`). Converted to Netscape format for yt-dlp. |
+
+Copy `packages/hermes-api/cookies/*.json.example` to `*.json`, paste exports from your browser, and keep real cookie files out of git.
+
+### yt-dlp impersonation & User-Agent
+
+Used mainly for TikTok on challenging networks. Defaults apply only to TikTok hosts so YouTube/other extractors stay unchanged.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HERMES_YTDLP_IMPERSONATE` | `chrome` | curl_cffi impersonation target (e.g. `chrome`). Set empty / `off` to disable. |
+| `HERMES_YTDLP_IMPERSONATE_SITES` | `tiktok` | Host fragments that may use impersonation (comma/space separated), or `all`. |
+| `HERMES_YTDLP_USER_AGENT` | `Mozilla/5.0` | Optional User-Agent override for the same site scope. Set `off` to disable. |
+
+See [Local Development](LOCAL_DEV.md) for the no-Docker workflow and TikTok notes.
+
 ### API Keys & Authentication
 
 | Variable | Default | Description |
@@ -222,6 +242,11 @@ openssl rand -hex 32
 **CORS errors:**
 - Add your frontend URL to `HERMES_ALLOWED_ORIGINS`
 - Ensure `HERMES_ALLOW_CREDENTIALS=true` for authenticated requests
+
+**YouTube / TikTok extract failures:**
+- Export fresh browser cookies into `packages/hermes-api/cookies/*.json` and set `HERMES_COOKIES_JSON`
+- For TikTok, keep impersonation + short UA enabled (see yt-dlp section above) and restart with `./scripts/local-dev.sh restart`
+- TikTok may still block some IPs intermittently; see [Local Development](LOCAL_DEV.md)
 
 ## Security Best Practices
 

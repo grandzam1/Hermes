@@ -11,7 +11,7 @@ dependencies = [
     "alembic>=1.13.0",
     "celery[redis]>=5.4.0,<5.7.0",
     "redis>=5.0.0,<8.0.0",
-    "yt-dlp[default]>=2025.11.12",
+    "yt-dlp[default]>=2026.8.4.234419.dev0",
     "pydantic[email]>=2.12.3",
     "python-multipart>=0.0.6",
     "PyJWT[crypto]>=2.8.0",
@@ -20,6 +20,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "sse-starlette>=1.6.5",
     "structlog>=23.0.0",
+    "curl-cffi>=0.13,<0.16",
 ]
 
 [dependency-groups]

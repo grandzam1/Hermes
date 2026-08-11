@@ -1,0 +1,60 @@
+---
+description: Prefer scripts/local-dev.sh for local no-Docker Hermes start/restart/status
+alwaysApply: true
+---
+
+# Local Dev (No Docker)
+
+This project runs **without Docker** in local development. Do **not** use `pnpm dev` (it uses Docker Compose).
+
+## Control script (required)
+
+Use the project script instead of ad-hoc shell commands for Redis / API / Celery / frontend:
+
+```bash
+./scripts/local-dev.sh restart   # preferred after .env or cookie changes
+./scripts/local-dev.sh status    # health-check everything
+./scripts/local-dev.sh stop
+./scripts/local-dev.sh start
+```
+
+pnpm aliases:
+
+```bash
+pnpm local:restart
+pnpm local:status
+pnpm local:stop
+pnpm local:start
+```
+
+## After config changes
+
+Always **`restart`** (not just API) when changing:
+
+- `.env` / `packages/hermes-api/.env`
+- `HERMES_COOKIES_JSON` or cookie JSON files under `packages/hermes-api/cookies/`
+
+Celery loads settings at process start. Restarting only uvicorn leaves downloads broken.
+
+## Ports / URLs
+
+- Frontend: http://127.0.0.1:5174 (5173 may be used by other apps)
+- API: http://127.0.0.1:8000
+- API docs: http://127.0.0.1:8000/docs
+- Logs: `/tmp/hermes-api.log`, `/tmp/hermes-celery.log`, `/tmp/hermes-app.log`
+
+## Cookies
+
+- Editable JSON (not hardcoded): `packages/hermes-api/cookies/youtube.json`, `tiktok.json`
+- Env: `HERMES_COOKIES_JSON=./cookies/youtube.json,./cookies/tiktok.json`
+- Files are gitignored; examples are `*.json.example`
+
+## TikTok yt-dlp knobs (TikTok-only by default)
+
+```bash
+HERMES_YTDLP_IMPERSONATE=chrome
+HERMES_YTDLP_IMPERSONATE_SITES=tiktok
+HERMES_YTDLP_USER_AGENT=Mozilla/5.0
+```
+
+Docs: `docs/LOCAL_DEV.md`, `docs/CONFIGURATION.md`

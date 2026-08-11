@@ -218,13 +218,19 @@ pnpm install
 cp .env.example .env
 # Edit .env with your settings
 
-# Start development servers
+# Docker-based local stack
 pnpm dev
+
+# Or no-Docker local stack (Redis + API + Celery + Vite)
+pnpm local:start
 ```
+
+See [Local Development (No Docker)](docs/LOCAL_DEV.md) for cookies, TikTok yt-dlp settings, and restart rules.
 
 ## 📚 Documentation
 
 - **[Configuration Guide](docs/CONFIGURATION.md)** - Complete environment variables and settings reference
+- **[Local Development (No Docker)](docs/LOCAL_DEV.md)** - `local-dev.sh`, cookies, TikTok impersonation / User-Agent
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Docker volumes, production deployment, and troubleshooting
 - **[Contributing Guide](docs/CONTRIBUTING.md)** - Development workflow, branch strategy, and how to contribute
 - **[Release Process](docs/RELEASE_PROCESS.md)** - Version management and release workflow

@@ -6,14 +6,87 @@ import asyncio
 import os
 import shutil
 from typing import Any, Callable, Dict, Optional
+from urllib.parse import urlparse
 
 import yt_dlp
-from yt_dlp.utils import DownloadError, ExtractorError
+from yt_dlp.networking.impersonate import ImpersonateTarget
+from yt_dlp.utils import DownloadError, ExtractorError, YoutubeDLError
 
+from app.core.config import settings
 from app.core.logging import get_logger
+from app.utils.cookies import ensure_netscape_cookie_file
 from app.utils.media import VIDEO_EXTENSIONS
 
 logger = get_logger(__name__)
+
+_IMPERSONATE_AVAILABLE: Optional[bool] = None
+
+
+def _resolve_impersonate_target(raw: str) -> Optional[ImpersonateTarget]:
+    """Parse configured target into an ImpersonateTarget (nightly requires this type)."""
+    value = (raw or "").strip()
+    if not value or value.lower() in {"off", "false", "0", "none"}:
+        return None
+    # Accept "chrome" or more specific "chrome-131:windows-10"
+    try:
+        return ImpersonateTarget.from_str(value) if hasattr(ImpersonateTarget, "from_str") else ImpersonateTarget(value)
+    except Exception:
+        return ImpersonateTarget(value)
+
+
+def _impersonate_supported(target: ImpersonateTarget | str) -> bool:
+    """Return True if curl_cffi + yt-dlp can use the given impersonate target."""
+    global _IMPERSONATE_AVAILABLE
+    if _IMPERSONATE_AVAILABLE is False:
+        return False
+    resolved = (
+        target
+        if isinstance(target, ImpersonateTarget)
+        else _resolve_impersonate_target(str(target))
+    )
+    if resolved is None:
+        return False
+    try:
+        with yt_dlp.YoutubeDL({"quiet": True, "impersonate": resolved}):
+            _IMPERSONATE_AVAILABLE = True
+            return True
+    except (YoutubeDLError, AssertionError, Exception) as e:
+        logger.warning(
+            "yt-dlp impersonate unavailable; continuing without it",
+            target=str(resolved),
+            error=str(e) or type(e).__name__,
+        )
+        _IMPERSONATE_AVAILABLE = False
+        return False
+
+
+def _site_match(url: str, sites_raw: str) -> bool:
+    """Return True if URL host matches configured site fragments."""
+    sites = (sites_raw or "").strip().lower()
+    if not sites:
+        return False
+    if sites in {"all", "*"}:
+        return True
+    host = (urlparse(url).hostname or "").lower()
+    fragments = [part.strip() for part in sites.replace(",", " ").split() if part.strip()]
+    return any(fragment in host for fragment in fragments)
+
+
+def _should_impersonate(url: str) -> bool:
+    """Decide whether impersonation applies for this URL (default: TikTok only)."""
+    raw_target = (settings.ytdlp_impersonate or "").strip()
+    if not raw_target or raw_target.lower() in {"off", "false", "0", "none"}:
+        return False
+    return _site_match(url, settings.ytdlp_impersonate_sites or "tiktok")
+
+
+def _should_override_user_agent(url: str) -> bool:
+    """Apply the short UA override only on selected sites (TikTok by default)."""
+    raw_ua = (settings.ytdlp_user_agent or "").strip()
+    if not raw_ua or raw_ua.lower() in {"off", "false", "0", "none"}:
+        return False
+    # Reuse the same site scope as impersonation so YouTube stays untouched.
+    return _site_match(url, settings.ytdlp_impersonate_sites or "tiktok")
 
 
 class YTDLPService:
@@ -27,6 +100,47 @@ class YTDLPService:
         }
         if shutil.which("node"):
             self._default_opts["js_runtimes"] = {"node": {}}
+
+    def _build_opts(self, url: Optional[str] = None, **kwargs: Any) -> Dict[str, Any]:
+        opts = self._default_opts.copy()
+        # Prefer explicit per-request cookie options over the shared cookies JSON.
+        if "cookiefile" not in kwargs and "cookiesfrombrowser" not in kwargs:
+            cookies_json = settings.cookies_json
+            if cookies_json:
+                try:
+                    opts["cookiefile"] = str(ensure_netscape_cookie_file(cookies_json))
+                except Exception as e:
+                    logger.warning(
+                        "Failed to load cookies JSON; continuing without cookies",
+                        path=cookies_json,
+                        error=str(e),
+                    )
+
+        # Impersonation is opt-in via settings and scoped by site (TikTok-only default)
+        # so already-working extractors (e.g. YouTube) stay unchanged.
+        if (
+            url
+            and "impersonate" not in kwargs
+            and _should_impersonate(url)
+        ):
+            target = _resolve_impersonate_target(settings.ytdlp_impersonate or "")
+            if target is not None and _impersonate_supported(target):
+                opts["impersonate"] = target
+
+        # TikTok on some datacenter IPs needs a short UA alongside impersonate+cookies.
+        if (
+            url
+            and "http_headers" not in kwargs
+            and _should_override_user_agent(url)
+        ):
+            ua = (settings.ytdlp_user_agent or "").strip()
+            if ua:
+                headers = dict(opts.get("http_headers") or {})
+                headers["User-Agent"] = ua
+                opts["http_headers"] = headers
+
+        opts.update(kwargs)
+        return opts
 
     async def extract_info(
         self, url: str, download: bool = False, **kwargs
@@ -45,8 +159,7 @@ class YTDLPService:
 
         def _extract_info_sync():
             try:
-                opts = self._default_opts.copy()
-                opts.update(kwargs)
+                opts = self._build_opts(url, **kwargs)
 
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     return ydl.extract_info(url, download=download)
@@ -88,14 +201,12 @@ class YTDLPService:
 
         def _download_sync():
             try:
-                opts = self._default_opts.copy()
-                opts.update(
-                    {
-                        "format": format_spec,
-                        "outtmpl": output_path,
-                        "restrictfilenames": True,  # Ensure safe filenames
-                        **kwargs,
-                    }
+                opts = self._build_opts(
+                    url,
+                    format=format_spec,
+                    outtmpl=output_path,
+                    restrictfilenames=True,  # Ensure safe filenames
+                    **kwargs,
                 )
 
                 # Add progress hook if callback provided

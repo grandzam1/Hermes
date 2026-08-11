@@ -4,6 +4,7 @@ Video information extraction endpoints.
 
 from fastapi import APIRouter, HTTPException, Query
 from yt_dlp.utils import ExtractorError
+from urllib.parse import urlparse
 
 from app.core.logging import get_logger
 from app.models.pydantic.response import (
@@ -34,9 +35,24 @@ async def extract_video_info(
     try:
         logger.info("Extracting video info", url=url)
 
-        # Extract with flat mode first to quickly detect if it's a playlist
-        # This avoids fetching full metadata twice
-        info = await yt_service.extract_info(url, download=False, extract_flat=True)
+        # Flat extract is a cheap playlist probe, but some extractors (notably
+        # TikTok) fail in flat mode and may also trip challenges when hit twice.
+        # Skip flat for TikTok and go straight to a full extract.
+        host = (urlparse(url).hostname or "").lower()
+        skip_flat = "tiktok" in host
+
+        used_flat = False
+        info = None
+        if not skip_flat:
+            info = await yt_service.extract_info(
+                url, download=False, extract_flat=True
+            )
+            used_flat = bool(info)
+
+        if not info:
+            info = await yt_service.extract_info(
+                url, download=False, extract_flat=False
+            )
 
         if not info:
             raise HTTPException(
@@ -135,15 +151,17 @@ async def extract_video_info(
 
         else:
             # Single video - re-extract with full metadata (formats, descriptions, etc.)
-            # Flat extraction doesn't include format info needed for single videos
-            info = await yt_service.extract_info(
-                url, download=False, extract_flat=False
-            )
-
-            if not info:
-                raise HTTPException(
-                    status_code=404, detail="Could not extract video information"
+            # Flat extraction doesn't include format info needed for single videos.
+            # Skip the second pass when we already fell back to a full extract.
+            if used_flat:
+                info = await yt_service.extract_info(
+                    url, download=False, extract_flat=False
                 )
+
+                if not info:
+                    raise HTTPException(
+                        status_code=404, detail="Could not extract video information"
+                    )
 
             response = VideoInfo(
                 id=info.get("id", ""),

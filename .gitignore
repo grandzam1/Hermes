@@ -74,6 +74,11 @@ tmp/
 .idea/
 .tanstack/
 
+# Browser cookies (never commit)
+**/cookies/*.json
+**/cookies/*.txt
+!**/cookies/*.json.example
+
 # Backup files
 *.bak
 *.bak.*

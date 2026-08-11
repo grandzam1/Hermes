@@ -1,0 +1,15 @@
+[
+  {
+    "domain": ".youtube.com",
+    "expirationDate": 1800000000,
+    "hostOnly": false,
+    "httpOnly": true,
+    "name": "LOGIN_INFO",
+    "path": "/",
+    "sameSite": "no_restriction",
+    "secure": true,
+    "session": false,
+    "storeId": null,
+    "value": "paste-exported-cookie-value-here"
+  }
+]

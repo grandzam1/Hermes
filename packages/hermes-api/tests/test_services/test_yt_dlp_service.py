@@ -37,6 +37,74 @@ def reset_fake_youtube_dl():
 
 
 @pytest.mark.asyncio
+async def test_extract_info_sets_tiktok_user_agent_only(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.yt_dlp_service.settings.ytdlp_impersonate", "off"
+    )
+    monkeypatch.setattr(
+        "app.services.yt_dlp_service.settings.ytdlp_impersonate_sites", "tiktok"
+    )
+    monkeypatch.setattr(
+        "app.services.yt_dlp_service.settings.ytdlp_user_agent", "Mozilla/5.0"
+    )
+    monkeypatch.setattr(
+        "app.services.yt_dlp_service.settings.cookies_json", None
+    )
+
+    service = YTDLPService()
+    with patch("app.services.yt_dlp_service.yt_dlp.YoutubeDL", FakeYoutubeDL):
+        await service.extract_info("https://www.tiktok.com/@x/video/1")
+        await service.extract_info("https://www.youtube.com/watch?v=abc")
+
+    assert FakeYoutubeDL.calls[0]["http_headers"]["User-Agent"] == "Mozilla/5.0"
+    assert "http_headers" not in FakeYoutubeDL.calls[1]
+
+
+@pytest.mark.asyncio
+async def test_extract_info_impersonates_tiktok_only(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.yt_dlp_service.settings.ytdlp_impersonate", "chrome"
+    )
+    monkeypatch.setattr(
+        "app.services.yt_dlp_service.settings.ytdlp_impersonate_sites", "tiktok"
+    )
+    monkeypatch.setattr(
+        "app.services.yt_dlp_service._impersonate_supported", lambda target: True
+    )
+    monkeypatch.setattr(
+        "app.services.yt_dlp_service.settings.cookies_json", None
+    )
+
+    with patch(
+        "app.services.yt_dlp_service.shutil.which", return_value="/usr/bin/node"
+    ):
+        service = YTDLPService()
+
+    with patch("app.services.yt_dlp_service.yt_dlp.YoutubeDL", FakeYoutubeDL):
+        await service.extract_info("https://www.tiktok.com/@x/video/1")
+        await service.extract_info("https://www.youtube.com/watch?v=abc")
+
+    assert str(FakeYoutubeDL.calls[0].get("impersonate")) == "chrome"
+    assert "impersonate" not in FakeYoutubeDL.calls[1]
+
+
+@pytest.mark.asyncio
+async def test_extract_info_skips_impersonate_when_disabled(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.yt_dlp_service.settings.ytdlp_impersonate", "off"
+    )
+    monkeypatch.setattr(
+        "app.services.yt_dlp_service.settings.cookies_json", None
+    )
+
+    service = YTDLPService()
+    with patch("app.services.yt_dlp_service.yt_dlp.YoutubeDL", FakeYoutubeDL):
+        await service.extract_info("https://www.tiktok.com/@x/video/1")
+
+    assert "impersonate" not in FakeYoutubeDL.calls[0]
+
+
+@pytest.mark.asyncio
 async def test_extract_info_enables_node_js_runtime():
     with patch(
         "app.services.yt_dlp_service.shutil.which", return_value="/usr/bin/node"

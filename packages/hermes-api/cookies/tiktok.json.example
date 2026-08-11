@@ -1,0 +1,15 @@
+[
+  {
+    "domain": ".tiktok.com",
+    "expirationDate": 1800000000,
+    "hostOnly": false,
+    "httpOnly": true,
+    "name": "sessionid",
+    "path": "/",
+    "sameSite": null,
+    "secure": true,
+    "session": false,
+    "storeId": null,
+    "value": "paste-exported-cookie-value-here"
+  }
+]
