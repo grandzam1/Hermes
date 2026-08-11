@@ -20,7 +20,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "sse-starlette>=1.6.5",
     "structlog>=23.0.0",
-    "curl-cffi>=0.13,<0.16",
+    "curl-cffi>=0.13,<0.17",
 ]
 
 [dependency-groups]
