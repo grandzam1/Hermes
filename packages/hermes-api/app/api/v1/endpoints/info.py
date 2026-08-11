@@ -44,9 +44,7 @@ async def extract_video_info(
         used_flat = False
         info = None
         if not skip_flat:
-            info = await yt_service.extract_info(
-                url, download=False, extract_flat=True
-            )
+            info = await yt_service.extract_info(url, download=False, extract_flat=True)
             used_flat = bool(info)
 
         if not info:

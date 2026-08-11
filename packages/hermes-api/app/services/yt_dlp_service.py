@@ -29,7 +29,11 @@ def _resolve_impersonate_target(raw: str) -> Optional[ImpersonateTarget]:
         return None
     # Accept "chrome" or more specific "chrome-131:windows-10"
     try:
-        return ImpersonateTarget.from_str(value) if hasattr(ImpersonateTarget, "from_str") else ImpersonateTarget(value)
+        return (
+            ImpersonateTarget.from_str(value)
+            if hasattr(ImpersonateTarget, "from_str")
+            else ImpersonateTarget(value)
+        )
     except Exception:
         return ImpersonateTarget(value)
 
@@ -68,7 +72,9 @@ def _site_match(url: str, sites_raw: str) -> bool:
     if sites in {"all", "*"}:
         return True
     host = (urlparse(url).hostname or "").lower()
-    fragments = [part.strip() for part in sites.replace(",", " ").split() if part.strip()]
+    fragments = [
+        part.strip() for part in sites.replace(",", " ").split() if part.strip()
+    ]
     return any(fragment in host for fragment in fragments)
 
 
@@ -118,21 +124,13 @@ class YTDLPService:
 
         # Impersonation is opt-in via settings and scoped by site (TikTok-only default)
         # so already-working extractors (e.g. YouTube) stay unchanged.
-        if (
-            url
-            and "impersonate" not in kwargs
-            and _should_impersonate(url)
-        ):
+        if url and "impersonate" not in kwargs and _should_impersonate(url):
             target = _resolve_impersonate_target(settings.ytdlp_impersonate or "")
             if target is not None and _impersonate_supported(target):
                 opts["impersonate"] = target
 
         # TikTok on some datacenter IPs needs a short UA alongside impersonate+cookies.
-        if (
-            url
-            and "http_headers" not in kwargs
-            and _should_override_user_agent(url)
-        ):
+        if url and "http_headers" not in kwargs and _should_override_user_agent(url):
             ua = (settings.ytdlp_user_agent or "").strip()
             if ua:
                 headers = dict(opts.get("http_headers") or {})
